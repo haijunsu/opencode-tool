@@ -62,8 +62,13 @@ def main():
     import sys
     if len(sys.argv) > 1:
         text = " ".join(sys.argv[1:])
+    elif not sys.stdin.isatty():
+        text = sys.stdin.read().replace("\n", " ")
     else:
-        text = input("Enter text: ")
+        try:
+            text = input("Enter text: ")
+        except EOFError:
+            sys.exit(0)
     print(ascii_art(text))
 
 

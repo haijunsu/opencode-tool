@@ -1,5 +1,6 @@
 #!/bin/bash
 # Run ASCII art generator
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-python3 "$SCRIPT_DIR/../src/opencode_tool/ascii_art.py" "$@"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+python3 "$PROJECT_ROOT/src/opencode_tool/ascii_art.py" "$@"
