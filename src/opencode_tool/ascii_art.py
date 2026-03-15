@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """ASCII art generator module."""
+import sys
 
 FONT = {
     "a": [" ####### ", "#       #", "# ##### #", "# #   # #", "# #   # #", "# #   # #", " ####### "],
@@ -59,9 +60,8 @@ def ascii_art(text: str) -> str:
 
 def main():
     """Main entry point for CLI usage."""
-    import sys
     if len(sys.argv) > 1:
-        text = " ".join(sys.argv[1:])
+        text = " ".join(sys.argv[1:])  # type: ignore
     elif not sys.stdin.isatty():
         text = sys.stdin.read().replace("\n", " ")
     else:

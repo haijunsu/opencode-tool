@@ -1,0 +1,12 @@
+#!/bin/bash
+# Run Passport Photo generator
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+if [ -f "$PROJECT_ROOT/venv/bin/python" ]; then
+    PYTHON_CMD="$PROJECT_ROOT/venv/bin/python"
+else
+    PYTHON_CMD="python3"
+fi
+
+"$PYTHON_CMD" "$PROJECT_ROOT/src/opencode_tool/passport-photo/passport_photo.py" "$@"
