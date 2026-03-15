@@ -22,28 +22,6 @@ def check_dependencies():
         print("pip install rembg opencv-python numpy Pillow")
         sys.exit(1)
 
-def refine_hair_edges(input_image):
-    """Improve hair edge detection by cleaning up alpha channel noise."""
-    img = input_image.copy()
-    
-    alpha = img.split()[3]
-    alpha_array = np.array(alpha)
-    
-    _, alpha_binary = cv2.threshold(alpha_array, 20, 255, cv2.THRESH_BINARY)
-    
-    kernel = np.ones((3, 3), np.uint8)
-    alpha_cleaned = cv2.morphologyEx(alpha_binary, cv2.MORPH_CLOSE, kernel, iterations=1)
-    alpha_cleaned = cv2.morphologyEx(alpha_cleaned, cv2.MORPH_OPEN, kernel, iterations=1)
-    
-    alpha_array = np.where(alpha_cleaned == 255, 255, alpha_array)
-    
-    alpha_img = Image.fromarray(alpha_array).convert("L")
-    alpha_img = alpha_img.filter(ImageFilter.GaussianBlur(1))
-    
-    img.putalpha(alpha_img)
-    
-    return img
-
 def generate_passport_photo(input_path, output_path, bg_color='blue'):
     """Generate a Chinese passport photo (33x48mm / 390x567px) from an input photo."""
     check_dependencies()
@@ -134,6 +112,86 @@ def generate_passport_photo(input_path, output_path, bg_color='blue'):
     print(f"Success! Passport photo saved to {output_path}")
 
 
+def _draw_horizontal_line(img, y, line_width, line_color, width):
+    """Draw a horizontal line on the image."""
+    from PIL import ImageDraw
+    draw = ImageDraw.Draw(img)
+    draw.rectangle([0, y, width, y + line_width], fill=line_color)
+    return img
+
+def _draw_vertical_line(img, x, line_width, line_color, height):
+    """Draw a vertical line on the image."""
+    from PIL import ImageDraw
+    draw = ImageDraw.Draw(img)
+    draw.rectangle([x, 0, x + line_width, height], fill=line_color)
+    return img
+
+def create_print_layout(input_path, output_path):
+    """Create a 4x6 inch print layout with multiple passport photos."""
+    check_dependencies()
+    
+    if not os.path.exists(input_path):
+        print(f"Error: Could not find '{input_path}'")
+        sys.exit(1)
+    
+    print("Creating print layout...")
+    
+    # 4x6 inches at 300 DPI
+    dpi = 300
+    layout_width = int(4 * dpi)  # 1200 pixels
+    layout_height = int(6 * dpi)  # 1800 pixels
+    
+    # Chinese passport photo dimensions (390x567 pixels)
+    photo_width = 390
+    photo_height = 567
+    
+    # Calculate how many photos fit
+    photos_across = layout_width // photo_width
+    photos_down = layout_height // photo_height
+    
+    total_photos = photos_across * photos_down
+    
+    # Create blank layout canvas (white background)
+    layout_img = Image.new("RGB", (layout_width, layout_height), (255, 255, 255))
+    
+    # Load the passport photo
+    passport_img = Image.open(input_path).convert("RGB")
+    
+    print(f"Placing {total_photos} passport photos on 4x6 layout...")
+    
+    # Draw black lines for easy splitting
+    line_width = 2
+    line_color = (0, 0, 0)
+    
+    for row in range(photos_down + 1):
+        y = row * photo_height
+        layout_img = _draw_horizontal_line(layout_img, y, line_width, line_color, layout_width)
+    
+    for col in range(photos_across + 1):
+        x = col * photo_width
+        layout_img = _draw_vertical_line(layout_img, x, line_width, line_color, layout_height)
+    
+    # Place photos in a grid (leaving line_width margin to keep lines visible)
+    for row in range(photos_down):
+        for col in range(photos_across):
+            x = col * photo_width
+            y = row * photo_height
+            layout_img.paste(passport_img, (x + line_width, y + line_width))
+    
+    # Redraw lines on top of photos
+    for row in range(photos_down + 1):
+        y = row * photo_height
+        layout_img = _draw_horizontal_line(layout_img, y, line_width, line_color, layout_width)
+    
+    for col in range(photos_across + 1):
+        x = col * photo_width
+        layout_img = _draw_vertical_line(layout_img, x, line_width, line_color, layout_height)
+    
+    # Save layout
+    layout_img.save(output_path, quality=95, dpi=(300, 300))
+    print(f"Success! Print layout saved to {output_path} ({photos_across}x{photos_down} = {total_photos} photos)")
+
+
 def main():
     parser = argparse.ArgumentParser(description="Generate a 33x48mm Chinese passport photo from an existing photo.")
     parser.add_argument("input", help="Path to input photo")
@@ -144,9 +202,18 @@ def main():
         default='blue', 
         help="Background color (default: blue)"
     )
+    parser.add_argument(
+        "--layout",
+        action="store_true",
+        help="Create a printable 4x6 layout with multiple passport photos"
+    )
     
     args = parser.parse_args()
-    generate_passport_photo(args.input, args.output, args.color)
+    
+    if args.layout:
+        create_print_layout(args.input, args.output)
+    else:
+        generate_passport_photo(args.input, args.output, args.color)
 
 if __name__ == "__main__":
     main()

@@ -205,3 +205,15 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# myfiles
+myfiles/
+
+# VSCode
+.vscode/
+
+# Pyright
+pyrightconfig.json
+
+# DS_Store in any folders including subfolders
+.DS_Store
