@@ -9,4 +9,4 @@ else
     PYTHON_CMD="python3"
 fi
 
-"$PYTHON_CMD" "$PROJECT_ROOT/src/opencode_tool/passport-photo/passport_photo.py" "$@"
+"$PYTHON_CMD" "$PROJECT_ROOT/src/opencode_tool/passport_photo.py" "$@"

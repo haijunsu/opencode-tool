@@ -4,6 +4,16 @@ import os
 import io
 
 import typing
+from typing import Dict, List, TypedDict, cast, Any
+
+class ProfileDict(TypedDict):
+    width: int
+    height: int
+    face_width: int
+    top_margin: int
+    default_bg: str
+    allowed_bg: List[str]
+    description: str
 
 try:
     import cv2
@@ -22,9 +32,50 @@ def check_dependencies():
         print("pip install rembg opencv-python numpy Pillow")
         sys.exit(1)
 
-def generate_passport_photo(input_path, output_path, bg_color='blue'):
-    """Generate a Chinese passport photo (33x48mm / 390x567px) from an input photo."""
+PHOTO_PROFILES: Dict[str, ProfileDict] = {
+    'cn_passport': {
+        'width': 390,
+        'height': 567,
+        'face_width': 220,
+        'top_margin': 40,
+        'default_bg': 'blue',
+        'allowed_bg': ['blue', 'white', 'red'],
+        'description': 'Chinese Passport Photo (33x48mm)'
+    },
+    'us_passport': {
+        'width': 600,
+        'height': 600,
+        'face_width': 300,
+        'top_margin': 100,
+        'default_bg': 'white',
+        'allowed_bg': ['white'],
+        'description': 'US Passport Photo (2x2 inches)'
+    },
+    'us_visa': {
+        'width': 600,
+        'height': 600,
+        'face_width': 300,
+        'top_margin': 100,
+        'default_bg': 'white',
+        'allowed_bg': ['white'],
+        'description': 'US Visa Photo (2x2 inches)'
+    }
+}
+
+def generate_passport_photo(input_path, output_path, profile_type='cn_passport', bg_color=None):
+    """Generate a passport/visa photo from an input photo based on the specified profile."""
     check_dependencies()
+    
+    if profile_type not in PHOTO_PROFILES:
+        print(f"Error: Unknown profile type '{profile_type}'")
+        sys.exit(1)
+        
+    profile = PHOTO_PROFILES[profile_type]
+    if bg_color is None:
+        bg_color = profile['default_bg']
+        
+    if bg_color not in profile['allowed_bg']:
+        print(f"Warning: '{bg_color}' background is not standard for {profile['description']}. Using anyway.")
     
     if not os.path.exists(input_path):
         print(f"Error: Could not find '{input_path}'")
@@ -59,13 +110,13 @@ def generate_passport_photo(input_path, output_path, bg_color='blue'):
     top_of_head = max(0, int(y - h * 0.2))
     
     print("3/4 Resizing and cropping...")
-    # Chinese Passport Photo standard pixel dimensions
-    target_width = 390
-    target_height = 567
+    # Profile dimensions
+    target_width = profile['width']
+    target_height = profile['height']
     
-    # Target face width is around 220 pixels
-    target_face_width = 220
-    scale = target_face_width / float(w)
+    # Target face width for proportion
+    target_face_width = profile['face_width']
+    scale = float(target_face_width) / float(w)
     
     # Resize the subject according to the scale
     new_size = (int(subject_img.width * scale), int(subject_img.height * scale))
@@ -78,8 +129,8 @@ def generate_passport_photo(input_path, output_path, bg_color='blue'):
     new_w = int(w * scale)
     new_top_of_head = int(float(top_of_head) * scale)  # type: ignore
     
-    # Chinese passport requires about 10-70px from top of image to crown of head (we aim for 40px)
-    top_margin = 40
+    # Margin from top of image to crown of head
+    top_margin = profile['top_margin']
     
     # Calculate crop area relative to the resized subject
     center_x = new_x + new_w // 2
@@ -98,10 +149,9 @@ def generate_passport_photo(input_path, output_path, bg_color='blue'):
     # Create final background canvas
     final_img = Image.new("RGBA", (target_width, target_height), bg_rgba)
     
-    # Compute the paste coordinates (where to put the resized subject on the background canvas)
-    # If crop_x1 is positive, we start pasting from the left edge of the crop box, meaning subject moves left (negative x)
-    paste_x = -crop_x1
-    paste_y = -crop_y1
+    # Compute the paste coordinates
+    paste_x = -int(crop_x1)
+    paste_y = -int(crop_y1)
     
     # Paste subject onto background (using subject itself as the alpha mask)
     final_img.paste(resized_subject, (paste_x, paste_y), resized_subject)
@@ -126,9 +176,15 @@ def _draw_vertical_line(img, x, line_width, line_color, height):
     draw.rectangle([x, 0, x + line_width, height], fill=line_color)
     return img
 
-def create_print_layout(input_path, output_path):
+def create_print_layout(input_path, output_path, profile_type='cn_passport'):
     """Create a 4x6 inch print layout with multiple passport photos."""
     check_dependencies()
+    
+    if profile_type not in PHOTO_PROFILES:
+        print(f"Error: Unknown profile type '{profile_type}'")
+        sys.exit(1)
+        
+    profile = PHOTO_PROFILES[profile_type]
     
     if not os.path.exists(input_path):
         print(f"Error: Could not find '{input_path}'")
@@ -141,9 +197,9 @@ def create_print_layout(input_path, output_path):
     layout_width = int(4 * dpi)  # 1200 pixels
     layout_height = int(6 * dpi)  # 1800 pixels
     
-    # Chinese passport photo dimensions (390x567 pixels)
-    photo_width = 390
-    photo_height = 567
+    # Passport photo dimensions
+    photo_width = profile['width']
+    photo_height = profile['height']
     
     # Calculate how many photos fit
     photos_across = layout_width // photo_width
@@ -193,27 +249,36 @@ def create_print_layout(input_path, output_path):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Generate a 33x48mm Chinese passport photo from an existing photo.")
+    parser = argparse.ArgumentParser(description="Generate standard passport/visa photos from an existing photo.")
     parser.add_argument("input", help="Path to input photo")
     parser.add_argument("output", help="Path to output photo (e.g., output.jpg)")
     parser.add_argument(
+        "--type",
+        choices=['cn_passport', 'us_passport', 'us_visa'],
+        default='cn_passport',
+        help="Type of photo to generate (default: cn_passport)"
+    )
+    parser.add_argument(
         "--color", 
         choices=['blue', 'white', 'red'], 
-        default='blue', 
-        help="Background color (default: blue)"
+        default=None, 
+        help="Background color (default depends on photo type)"
     )
     parser.add_argument(
         "--layout",
         action="store_true",
         help="Create a printable 4x6 layout with multiple passport photos"
     )
-    
+    if len(sys.argv) == 1:
+        parser.print_help(sys.stderr)
+        sys.exit(1)
+        
     args = parser.parse_args()
     
     if args.layout:
-        create_print_layout(args.input, args.output)
+        create_print_layout(args.input, args.output, args.type)
     else:
-        generate_passport_photo(args.input, args.output, args.color)
+        generate_passport_photo(args.input, args.output, args.type, args.color)
 
 if __name__ == "__main__":
     main()
